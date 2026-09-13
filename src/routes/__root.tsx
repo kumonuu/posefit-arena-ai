@@ -77,11 +77,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "PoseFit Arena — AI Webcam Fitness Game" },
+      {
+        name: "description",
+        content:
+          "AI-powered webcam fitness game that tracks your body and scores squats, jumps, push-ups, lunges and custom moves in real time.",
+      },
+      { name: "author", content: "PoseFit Arena" },
+      { property: "og:title", content: "PoseFit Arena — AI Webcam Fitness Game" },
+      {
+        property: "og:description",
+        content:
+          "AI-powered webcam fitness game that scores your reps in real time.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
