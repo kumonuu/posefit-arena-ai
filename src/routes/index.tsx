@@ -35,7 +35,7 @@ const COMBO_WINDOW = 4000;
 
 function Arena() {
   const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
-  const [exercise, setExercise] = useState<Exercise>(BUILT_IN_EXERCISES[0]);
+  const [exercise, setExercise] = useState<Exercise>(BUILT_IN_EXERCISES[0]!);
   const [score, setScore] = useState(0);
   const [reps, setReps] = useState(0);
   const [best, setBest] = useState(0);

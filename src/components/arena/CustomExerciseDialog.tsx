@@ -144,7 +144,7 @@ export function CustomExerciseDialog({ onCreate, liveValue }: Props) {
               min={def.min}
               max={def.max}
               step={1}
-              onValueChange={(v) => setDown(v[0])}
+              onValueChange={(v) => setDown(v[0] ?? down)}
             />
           </div>
 
@@ -161,7 +161,7 @@ export function CustomExerciseDialog({ onCreate, liveValue }: Props) {
               min={def.min}
               max={def.max}
               step={1}
-              onValueChange={(v) => setUp(v[0])}
+              onValueChange={(v) => setUp(v[0] ?? up)}
             />
           </div>
         </div>
