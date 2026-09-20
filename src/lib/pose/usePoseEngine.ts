@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   computeMetric,
+  isInverted,
   stepRep,
   type Exercise,
   type Keypoint,
   type RepState,
 } from "./exercises";
+import { scoreRep } from "@/lib/game/form";
+import type { RepDetail } from "@/lib/game/types";
 
 export type EngineStatus = "idle" | "loading" | "running" | "error";
 
@@ -26,10 +29,11 @@ const SKELETON: [string, string][] = [
 
 type Options = {
   exercise: Exercise;
-  onRep: () => void;
+  onRep: (detail: RepDetail) => void;
+  accent?: string;
 };
 
-export function usePoseEngine({ exercise, onRep }: Options) {
+export function usePoseEngine({ exercise, onRep, accent }: Options) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const detectorRef = useRef<{ estimatePoses: (v: HTMLVideoElement) => Promise<unknown> } | null>(
@@ -41,6 +45,13 @@ export function usePoseEngine({ exercise, onRep }: Options) {
   const onRepRef = useRef(onRep);
   const smoothRef = useRef<number | null>(null);
   const fpsRef = useRef({ last: 0, frames: 0 });
+  const keypointsRef = useRef<Keypoint[]>([]);
+  const repRef = useRef<{ startedAt: number; peak: number | null; peakKps: Keypoint[] }>({
+    startedAt: 0,
+    peak: null,
+    peakKps: [],
+  });
+  const accentRef = useRef(accent);
 
   const [status, setStatus] = useState<EngineStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +71,12 @@ export function usePoseEngine({ exercise, onRep }: Options) {
     onRepRef.current = onRep;
   }, [onRep]);
 
+  useEffect(() => {
+    accentRef.current = accent;
+  }, [accent]);
+
+  const getKeypoints = useCallback(() => keypointsRef.current, []);
+
   const draw = useCallback((keypoints: Keypoint[]) => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
@@ -77,10 +94,11 @@ export function usePoseEngine({ exercise, onRep }: Options) {
     const visible = new Map<string, Keypoint>();
     for (const k of keypoints) if (k.name && (k.score ?? 0) > 0.3) visible.set(k.name, k);
 
+    const bone = accentRef.current ?? "rgba(190, 255, 60, 0.9)";
     ctx.lineWidth = Math.max(3, w / 180);
     ctx.lineCap = "round";
-    ctx.strokeStyle = "rgba(190, 255, 60, 0.9)";
-    ctx.shadowColor = "rgba(190, 255, 60, 0.8)";
+    ctx.strokeStyle = bone;
+    ctx.shadowColor = bone;
     ctx.shadowBlur = 14;
     for (const [a, b] of SKELETON) {
       const ka = visible.get(a);
@@ -111,6 +129,7 @@ export function usePoseEngine({ exercise, onRep }: Options) {
     try {
       const poses = (await detector.estimatePoses(video)) as { keypoints: Keypoint[] }[];
       const kps = poses?.[0]?.keypoints ?? [];
+      keypointsRef.current = kps;
       draw(kps);
 
       const ex = exerciseRef.current;
@@ -121,11 +140,43 @@ export function usePoseEngine({ exercise, onRep }: Options) {
           smoothRef.current == null ? sample.value : smoothRef.current * 0.6 + sample.value * 0.4;
         smoothRef.current = smoothed;
         setMetricValue(smoothed);
+
+        const wasReady = repStateRef.current.phase === "ready";
         const next = stepRep(ex, smoothed, repStateRef.current);
         repStateRef.current = next.state;
         setPhase(next.state.phase);
         setProgress(next.state.progress);
-        if (next.rep) onRepRef.current();
+
+        if (wasReady && next.state.phase === "loaded") {
+          repRef.current = { startedAt: performance.now(), peak: smoothed, peakKps: kps };
+        } else if (next.state.phase === "loaded") {
+          const deeper = isInverted(ex.metric)
+            ? smoothed < (repRef.current.peak ?? Infinity)
+            : smoothed > (repRef.current.peak ?? -Infinity);
+          if (deeper) {
+            repRef.current.peak = smoothed;
+            repRef.current.peakKps = kps;
+          }
+        }
+
+        if (next.rep) {
+          const info = repRef.current;
+          const durationMs = info.startedAt ? performance.now() - info.startedAt : 1200;
+          const form = scoreRep({
+            exercise: ex,
+            peak: info.peak ?? ex.down,
+            durationMs,
+            peakKeypoints: info.peakKps.length ? info.peakKps : kps,
+          });
+          onRepRef.current({
+            at: Date.now(),
+            durationMs,
+            depth: info.peak ?? ex.down,
+            formScore: form.score,
+            violations: form.violations,
+          });
+          repRef.current = { startedAt: 0, peak: null, peakKps: [] };
+        }
       }
 
       const now = performance.now();
@@ -200,6 +251,7 @@ export function usePoseEngine({ exercise, onRep }: Options) {
     canvasRef,
     start,
     stop,
+    getKeypoints,
     status,
     error,
     progress,
